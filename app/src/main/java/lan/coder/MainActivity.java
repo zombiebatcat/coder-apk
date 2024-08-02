@@ -1,24 +1,23 @@
 package lan.coder;
 import android.net.Uri;
-import android.net.http.SslError;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.WindowManager;
-import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebResourceRequest;
 
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+
 import java.io.FileReader;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -26,6 +25,7 @@ import java.util.regex.Pattern;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
 
 public class MainActivity extends AppCompatActivity {
     protected WebView webView;
@@ -70,13 +70,12 @@ public class MainActivity extends AppCompatActivity {
         webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         initParams();
         initClient();
-        
         Log.d("webview-init", "url: " + url +"\ndomain: " + domain);
         webView.loadUrl(url);
     }
 
     private void initClient() {
-        webView.setWebViewClient(new WebViewClient() {
+        webView.setWebViewClient(new MyWebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest rq ) {
                 String uri = rq.getUrl().toString();
@@ -92,11 +91,6 @@ public class MainActivity extends AppCompatActivity {
                     return new WebResourceResponse(null, null, new ByteArrayInputStream(new byte[0]));
                 }
                 return super.shouldInterceptRequest(view, rq );
-            }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                handler.proceed();
             }
 
             // 优化代码：添加缓存机制，避免每次都重新加载网页
