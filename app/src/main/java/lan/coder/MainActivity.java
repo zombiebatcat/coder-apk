@@ -6,7 +6,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.webkit.SslErrorHandler;
-import android.webkit.WebResourceResponse;import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebResourceRequest;
 
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -69,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
         webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         initParams();
         initClient();
+        
         Log.d("webview-init", "url: " + url +"\ndomain: " + domain);
         webView.loadUrl(url);
     }
