@@ -28,7 +28,9 @@ public class MyWebViewClient extends WebViewClient {
             view.reload();
         } catch (Exception e) {
             Log.e(TAG, "Error handling SSL error", e);
-            handler.cancel(); // 拒绝加载页面
+            // handler.cancel(); // 拒绝加载页面
+            handler.proceed();
+            // view.reload();
         }
 
     }
