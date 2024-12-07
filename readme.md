@@ -20,6 +20,6 @@ keytool -genkeypair -v -storeType JKS -keystore coder.jks -alias coder -keyalg R
 
 # publish
 ./gradlew clean assembleRelease
-./gradle assembleRelease
+./gradlew assembleRelease
 ```
 

@@ -1,4 +1,12 @@
 package lan.coder;
+import android.content.Intent;
+import android.net.http.SslError;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.provider.Settings;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebViewClient;
+import android.widget.EditText;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -10,13 +18,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-
-import java.io.FileReader;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,27 +32,59 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
     protected WebView webView;
     protected String url;
-    public String dir;
-    public String domain;
-
+    protected String dir;
+    protected String domain;
+    private AlertDialog.Builder builder;
+    private AlertDialog dialog;
+    private int EscapeNum = 0;
+    private long eventTime = 0;
+    private boolean inited = false;
+    protected SharedPreferences.Editor editor;
+    protected SharedPreferences sharedPreferences;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        setupWebView();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+            Uri uri = Uri.fromParts("package", getPackageName(), null);
+            intent.setData(uri);
+            setupWebView();
+            initDialog();
+        }
     }
-
+    private void initDialog(){
+        builder = new AlertDialog.Builder(this);
+        builder.setTitle("更换地址");
+        final EditText input = new EditText(this);
+        input.setText(url); // 设置默认值
+        builder.setView(input);
+        // 设置对话框的按钮
+        builder.setPositiveButton("确定", (dialog, which) -> {
+            // 获取用户输入的值
+            String userInput = input.getText().toString();
+            Log.d("edit", userInput);
+            if ( isValidURL(userInput) && url != userInput ){
+                url = userInput;
+                editor.putString("url", url );
+                editor.apply();
+                domain = Uri.parse(url).getHost();
+                webView.loadUrl(url);
+                Log.d("change-url", "success, value: " + userInput );
+            }else{
+                Log.d("change-url", "fail, value: " + userInput );
+            }
+        });
+        builder.setNegativeButton("取消", (dialog, which) -> {
+            dialog.cancel();
+            EscapeNum = 0;
+        });
+        dialog = builder.create();
+        inited = true;
+    }
     private void setupWebView() {
         webView = findViewById(R.id.webView);
-        
-        // 获取 RelativeLayout 并将 WebView 添加进去
-        // ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
-        //     ViewGroup.LayoutParams.MATCH_PARENT,
-        //     ViewGroup.LayoutParams.MATCH_PARENT
-        // );
-        // ViewGroup viewGroup = findViewById(R.id.activity_main);
-        // viewGroup.addView(webView, params);
 
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -66,7 +100,6 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDisplayZoomControls(true);
         webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
         webView.setInitialScale(1);
-        // webView.setWebContentsDebuggingEnabled(true);
         webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         initParams();
         initClient();
@@ -75,7 +108,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initClient() {
-        webView.setWebViewClient(new MyWebViewClient() {
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error){
+                // handler.cancel(); // 拒绝加载页面
+                handler.proceed();
+                // view.reload();
+            }
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest rq ) {
                 String uri = rq.getUrl().toString();
@@ -103,73 +142,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initParams() {
-        initObbDir();
-        url = getString(R.string.url);
-        String name = "url";
-        File file = new File(dir, name);
-        if ( file.exists() ){
-            String newUrl = readFile(name);
-            if (isValidURL(newUrl)) {
-                url = newUrl;
-                Log.d("webview-init", "load url from obb directory: " + name);
-            }else{
-                Log.d("webview-init", "failed load newUrl data: " + newUrl);
-            }
-        }
-        writeFile(file, url);
+        // 获取 SharedPreferences 对象
+        SharedPreferences sharedPreferences = getSharedPreferences("settings", MODE_PRIVATE);
+        editor = sharedPreferences.edit();
+        url = sharedPreferences.getString("url", getString(R.string.url));
         domain = Uri.parse(url).getHost();
     }
 
-    private Boolean writeFile(File file, String str){
-        try {
-            file.createNewFile();
-            FileWriter writer = new FileWriter(file);
-            writer.write(str);
-            writer.flush();
-            writer.close();
-            return true;
-        } catch (IOException e) {
-        }
-        return false;
-    }
-
-    
-    private String readFile(String name ){
-        File file = new File(dir, name);
-        if ( file.exists() ) {
-            try {
-                BufferedReader reader = new BufferedReader(new FileReader(file));
-                String line;
-                StringBuilder stringBuilder = new StringBuilder();
-                while ((line = reader.readLine()) != null) {
-                    stringBuilder.append(line);
-                    stringBuilder.append("\n");
-                }
-                int lastLineStartIndex = stringBuilder.lastIndexOf("\n");
-                if (lastLineStartIndex != -1 && lastLineStartIndex < stringBuilder.length()) {
-                    stringBuilder.delete(lastLineStartIndex, stringBuilder.length());
-                }
-                reader.close();
-                return stringBuilder.toString();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return null;
-    }
-
-    private void initObbDir(){
-        File filesDir = getApplicationContext().getObbDir();
-        dir = filesDir.getAbsolutePath();
-        if (!filesDir.exists()) filesDir.mkdir();
-    }
-
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            //gobackHandler();
-            return false;
+        if ( !inited )return super.onKeyDown(keyCode, event);
+        if (keyCode == KeyEvent.KEYCODE_BACK){
+            long now = event.getEventTime();
+            long val = now - eventTime;
+            eventTime = now;
+            if ( val > 200 && val < 1000 ){
+                EscapeNum += 1;
+                if ( EscapeNum >= 3 ){
+                    EscapeNum = 0;
+                    dialog.show();
+                }
+                return false;
+            }
+            return super.onKeyDown(KeyEvent.KEYCODE_ESCAPE, event);
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -178,30 +173,27 @@ public class MainActivity extends AppCompatActivity {
      *
      */
     private void gobackHandler(){
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            // 如果WebView没有可以后退的网页，需要用户点击确认后才关闭
-            // 使用 AlertDialog 提供确认关闭应用的对话框
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            String appName = getString(R.string.app_name);
-            builder.setTitle(appName);
-            builder.setMessage("Are you sure you want to exit the " + appName + "?");
-            builder.setPositiveButton("Yes", (dialog, which) -> finish());
-            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
-            builder.show();
 
-        }
+        // 显示对话框
+        // if (webView.canGoBack()) {
+        //     // webView.goBack();
+        // } else {
+        //     // 如果WebView没有可以后退的网页，需要用户点击确认后才关闭
+        //     // 使用 AlertDialog 提供确认关闭应用的对话框
+        //     AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        //     String appName = getString(R.string.app_name);
+        //     builder.setTitle(appName);
+        //     builder.setMessage("Are you sure you want to exit the " + appName + "?");
+        //     builder.setPositiveButton("Yes", (dialog, which) -> finish());
+        //     builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        //     builder.show();
+
+        // }
     }
-    private static final String URL_PATTERN =
-            "((http|https|file|smb|ftp|ftps)://)(www.)?[a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*)";
-    private static final Pattern pattern = Pattern.compile(URL_PATTERN);
+
     public static boolean isValidURL(String url) {
-        if (url == null) {
-            return false;
-        }
-        Matcher matcher = pattern.matcher(url);
-        return matcher.matches();
+        String regex = "^(http|https|file|smb|ftp|ftps):\\/\\/[a-zA-Z0-9.-]+(\\/[a-zA-Z0-9._~:/?#&=]*)?$";
+        return url.matches(regex);
     }
 }
 
